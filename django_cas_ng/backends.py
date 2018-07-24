@@ -129,7 +129,7 @@ class CASBackend(ModelBackend):
             # ModelBackend has a `user_can_authenticate` method starting from Django
             # 1.10, that only allows active user to log in. For consistency,
             # django-cas-ng will have the same behavior as Django's ModelBackend.
-            can_authenticate = super().user_can_authenticate(user)
+            can_authenticate = super(CASBackend, self).user_can_authenticate(user)
         else:
             can_authenticate = True
         return can_authenticate and user is not None
