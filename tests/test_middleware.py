@@ -1,10 +1,9 @@
 from __future__ import absolute_import
 
-from django.test import RequestFactory
 from django.contrib.auth.models import AnonymousUser
-
-from django_cas_ng.middleware import CASMiddleware
+from django.test import RequestFactory
 from django_cas_ng import views
+from django_cas_ng.middleware import CASMiddleware
 
 
 def _process_view_with_middleware(
@@ -22,7 +21,7 @@ def test_root_as_cas_admin_prefix_with_cas_login(monkeypatch, settings):
                         lambda func: "/login/")
     settings.CAS_ADMIN_PREFIX = "/"
     response = _process_view_with_middleware(
-        CASMiddleware, '/login/', views.login)
+        CASMiddleware, '/login/', views.LoginView)
     assert response is None
 
 
@@ -31,5 +30,5 @@ def test_root_as_cas_admin_prefix_with_cas_logout(monkeypatch, settings):
                         lambda func: "/login/")
     settings.CAS_ADMIN_PREFIX = "/"
     response = _process_view_with_middleware(
-        CASMiddleware, '/logout/', views.logout)
+        CASMiddleware, '/logout/', views.LogoutView)
     assert response is None

@@ -1,6 +1,8 @@
 from __future__ import absolute_import
-from django_cas_ng.utils import get_redirect_url, get_service_url
+
 from django.test import RequestFactory
+from django_cas_ng.utils import get_redirect_url, get_service_url
+
 
 #
 # get_service_url tests
@@ -54,6 +56,16 @@ def test_service_url_avoids_next(settings):
     expected = 'http://testserver/login/'
     assert actual == expected
 
+
+def test_service_url_root_proxied_as(settings):
+    settings.CAS_ROOT_PROXIED_AS = 'https://foo.bar:8443'
+
+    factory = RequestFactory()
+    request = factory.get('/login/')
+
+    actual = get_service_url(request)
+    expected = 'https://foo.bar:8443/login/?next=%2F'
+    assert actual == expected
 
 #
 # get_redirect_url tests

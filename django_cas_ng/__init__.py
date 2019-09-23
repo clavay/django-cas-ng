@@ -1,7 +1,6 @@
 """Django CAS 1.0/2.0 authentication backend"""
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
@@ -11,6 +10,8 @@ __all__ = []
 _DEFAULTS = {
     'CAS_ADMIN_PREFIX': None,
     'CAS_CREATE_USER': True,
+    'CAS_LOGIN_URL_NAME': 'cas_ng_login',
+    'CAS_LOGOUT_URL_NAME': 'cas_ng_logout',
     'CAS_EXTRA_LOGIN_PARAMS': None,
     'CAS_RENEW': False,
     'CAS_IGNORE_REFERER': False,
@@ -27,7 +28,9 @@ _DEFAULTS = {
     'CAS_STORE_NEXT': False,
     'CAS_APPLY_ATTRIBUTES_TO_USER': False,
     'CAS_RENAME_ATTRIBUTES': {},
-    'CAS_CREATE_USER_WITH_ID': False
+    'CAS_CREATE_USER_WITH_ID': False,
+    'CAS_VERIFY_SSL_CERTIFICATE': True,
+    'CAS_LOCAL_NAME_FIELD': None,
 }
 
 for key, value in list(_DEFAULTS.items()):

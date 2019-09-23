@@ -1,13 +1,12 @@
 """CAS authentication backend"""
-from __future__ import absolute_import
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
-from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django_cas_ng.signals import cas_user_authenticated
 
-from django_cas_ng.signals import cas_user_authenticated, cas_user_cannot_authenticate
 from .utils import get_cas_client
 
 __all__ = ['CASBackend']
@@ -27,6 +26,12 @@ class CASBackend(ModelBackend):
         if attributes and request:
             request.session['attributes'] = attributes
 
+        if settings.CAS_USERNAME_ATTRIBUTE != 'uid' and settings.CAS_VERSION != 'CAS_2_SAML_1_0':
+            if attributes:
+                username = attributes.get(settings.CAS_USERNAME_ATTRIBUTE)
+            else:
+                return None
+
         if not username:
             return None
         user = None
@@ -40,7 +45,7 @@ class CASBackend(ModelBackend):
             # If we can, we rename the attributes as described in the settings file
             # Existing attributes will be overwritten
             for cas_attr_name, req_attr_name in settings.CAS_RENAME_ATTRIBUTES.items():
-                if cas_attr_name in attributes:
+                if cas_attr_name in attributes and cas_attr_name is not req_attr_name:
                     attributes[req_attr_name] = attributes[cas_attr_name]
                     attributes.pop(cas_attr_name)
 
@@ -62,19 +67,18 @@ class CASBackend(ModelBackend):
         else:
             created = False
             try:
-                user = UserModel._default_manager.get_by_natural_key(username)
+                if settings.CAS_LOCAL_NAME_FIELD:
+                    user_kwargs = {
+                        settings.CAS_LOCAL_NAME_FIELD: username
+
+                    }
+                    user = UserModel._default_manager.get(**user_kwargs)
+                else:
+                    user = UserModel._default_manager.get_by_natural_key(username)
             except UserModel.DoesNotExist:
                 pass
 
         if not self.user_can_authenticate(user):
-            cas_user_cannot_authenticate.send(
-                sender=self,
-                username=username,
-                user=user,
-                created=created,
-                ticket=ticket,
-                request=request,
-            )
             return None
 
         if pgtiou and settings.CAS_PROXY_CALLBACK and request:
@@ -117,22 +121,21 @@ class CASBackend(ModelBackend):
             sender=self,
             user=user,
             created=created,
+            username=username,
             attributes=attributes,
+            pgtiou=pgtiou,
             ticket=ticket,
             service=service,
             request=request
         )
         return user
 
-    def user_can_authenticate(self, user):
-        if hasattr(ModelBackend, 'user_can_authenticate'):
-            # ModelBackend has a `user_can_authenticate` method starting from Django
-            # 1.10, that only allows active user to log in. For consistency,
-            # django-cas-ng will have the same behavior as Django's ModelBackend.
-            can_authenticate = super(CASBackend, self).user_can_authenticate(user)
-        else:
-            can_authenticate = True
-        return can_authenticate and user is not None
+    # ModelBackend has a `user_can_authenticate` method starting from Django
+    # 1.10, that only allows active user to log in. For consistency,
+    # django-cas-ng will have the same behavior as Django's ModelBackend.
+    if not hasattr(ModelBackend, 'user_can_authenticate'):
+        def user_can_authenticate(self, user):
+            return True
 
     def get_user_id(self, attributes):
         """

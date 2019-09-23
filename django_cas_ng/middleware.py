@@ -1,31 +1,18 @@
 """CAS authentication middleware"""
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
-from django.utils.six.moves import urllib_parse
-
-from django.http import HttpResponseRedirect
-from django.core.exceptions import PermissionDenied
 from django.conf import settings
 from django.contrib.auth import REDIRECT_FIELD_NAME
-from django.contrib.auth.views import login, logout
-try:
-    # Django > 1.10 deprecates django.core.urlresolvers
-    from django.urls import reverse
-except ImportError:
-    from django.core.urlresolvers import reverse
+from django.contrib.auth.views import LoginView as login, LogoutView as logout
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+from django.utils.deprecation import MiddlewareMixin
+from django.utils.six.moves import urllib_parse
 from django.utils.translation import ugettext_lazy as _
 
-try:
-    # Django > 1.10 uses MiddlewareMixin
-    from django.utils.deprecation import MiddlewareMixin
-except ImportError:
-    MiddlewareMixin = object
-
-import django
-
-from .views import login as cas_login, logout as cas_logout
+from .views import LoginView as cas_login, LogoutView as cas_logout
 
 __all__ = ['CASMiddleware']
 
@@ -62,15 +49,13 @@ class CASMiddleware(MiddlewareMixin):
         elif not view_func.__module__.startswith('django.contrib.admin.'):
             return None
 
-        if django.VERSION[0] < 2:
-            is_user_authenticated = request.user.is_authenticated()
-        else:
-            is_user_authenticated = request.user.is_authenticated
+        if view_func.__name__ == 'logout':
+            return HttpResponseRedirect(reverse(settings.CAS_LOGOUT_URL_NAME))
 
-        if is_user_authenticated:
+        if request.user.is_authenticated:
             if request.user.is_staff:
                 return None
             else:
                 raise PermissionDenied(_('You do not have staff privileges.'))
         params = urllib_parse.urlencode({REDIRECT_FIELD_NAME: request.get_full_path()})
-        return HttpResponseRedirect(reverse(cas_login) + '?' + params)
+        return HttpResponseRedirect(reverse(settings.CAS_LOGIN_URL_NAME) + '?' + params)

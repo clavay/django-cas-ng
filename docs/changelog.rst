@@ -6,6 +6,39 @@ Listed are the high-level, notable changes for each django-cas-ng release.
 Backwards incompatible changes or other upgrade issues are also described
 here. For additional detail, read the complete `commit history`_.
 
+**django-cas-ng x.x.x** ``[xxxx-xx-xx]``
+  * PR-206: New behavior for `CAS_USERNAME_ATTRIBUTE` setting which will now fallback to setting the specified attribute
+  for `username` when set with a value other than the default (`uid`) when using a `CAS_VERSION` that did not previously 
+  support this behavior (anything other than `CAS_VERSION = 'CAS_2_SAML_1_0`).
+
+**django-cas-ng 3.6.0** ``[2018-11-23]``
+
+  * Removed support for Django < 1.11.
+  * PR-188: Introduce isort for automatic import ordering
+  * PR-187: Remove unused workarounds for EOL Django < 1.10
+  * PR-186: Simplify dependency handling in tox.ini
+  * PR-184: Remove unnecessary distutils fallback from setup.py
+  * PR-183: Use skip_install=true for lint or static tox targets
+  * PR-182: Distribute package as a universal wheel
+  * PR-181: Remove unused submodule python-cas
+  * PR-180: Trim trailing white space throughout the project
+  * PR-179: Class-based Login, Logout and Callback views, plus successful_login overridable method
+  * PR-177: Fix #172 attributes that do not change being removed
+  * PR-176: Fix #106: Adding `CAS_VE RIFY_SSL_CERTIFICATE` setting
+  * PR-173: Include 'django_cas_ng.middleware.CASMiddleware' middleware in example settings of README
+  * PR-171: Fix #170 in README: Fix broken links, add syntax highlighting and slight changes to the bad_attributes_reject example
+  * Fix #164: Remove dead links in README
+
+
+**django-cas-ng 3.5.10** ``[2018-10-09]``
+
+  * PR-149: Add CAS_PROXIED_AS config: Allow functioanlity behind a proxy server like mod_auth_cas for apache.
+  * PR-150: Django 2.0 compatibility (user.is_authenticated).
+  * PR-154: Catalan and Spanish translation
+  * PR-156: Add support for CAS attributes renaming
+  * PR-165: Fix CAS_ROOT_PROXIED_AS double slash
+
+
 **django-cas-ng 3.5.9** ``[2018-01-02]``
 
   * Add the optional setting CAS_CREATE_USER_WITH_ID. (PR #129)
@@ -113,5 +146,3 @@ creation in some case.
    * Support Django 1.5 custom user model.
 
 .. _commit history: https://github.com/mingchen/django-cas-ng/commits
-
-

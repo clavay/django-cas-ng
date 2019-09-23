@@ -1,9 +1,16 @@
+import warnings
+
 from cas import CASClient
 from django.conf import settings as django_settings
-from django.contrib.auth import REDIRECT_FIELD_NAME, SESSION_KEY, BACKEND_SESSION_KEY, load_backend
+from django.contrib.auth import (
+    BACKEND_SESSION_KEY,
+    REDIRECT_FIELD_NAME,
+    SESSION_KEY,
+    load_backend,
+)
 from django.contrib.auth.models import AnonymousUser
-from django.utils.six.moves import urllib_parse
 from django.shortcuts import resolve_url
+from django.utils.six.moves import urllib_parse
 
 
 def get_protocol(request):
@@ -36,7 +43,7 @@ def get_redirect_url(request):
 def get_service_url(request, redirect_to=None):
     """Generates application django service URL for CAS"""
     if hasattr(django_settings, 'CAS_ROOT_PROXIED_AS'):
-        service = django_settings.CAS_ROOT_PROXIED_AS + '/' + request.path
+        service = django_settings.CAS_ROOT_PROXIED_AS + request.path
     else:
         protocol = get_protocol(request)
         host = request.get_host()
@@ -65,6 +72,15 @@ def get_cas_client(service_url=None, request=None):
         scheme = request.META.get("X-Forwarded-Proto", request.scheme)
         server_url = scheme + "://" + request.META['HTTP_HOST'] + server_url
     # assert server_url.startswith('http'), "settings.CAS_SERVER_URL invalid"
+
+    if not django_settings.CAS_VERIFY_SSL_CERTIFICATE:
+        warnings.warn(
+            "`CAS_VERIFY_SSL_CERTIFICATE` is disabled, meaning that SSL certificates "
+            "are not being verified by a certificate authority. This can expose your "
+            "system to various attacks and should _never_ be disabled in a production "
+            "environment."
+        )
+
     return CASClient(
         service_url=service_url,
         version=django_settings.CAS_VERSION,
@@ -72,7 +88,8 @@ def get_cas_client(service_url=None, request=None):
         extra_login_params=django_settings.CAS_EXTRA_LOGIN_PARAMS,
         renew=django_settings.CAS_RENEW,
         username_attribute=django_settings.CAS_USERNAME_ATTRIBUTE,
-        proxy_callback=django_settings.CAS_PROXY_CALLBACK
+        proxy_callback=django_settings.CAS_PROXY_CALLBACK,
+        verify_ssl_certificate=django_settings.CAS_VERIFY_SSL_CERTIFICATE
     )
 
 

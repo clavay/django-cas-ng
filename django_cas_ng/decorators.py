@@ -1,20 +1,14 @@
 """Replacement authentication decorators that work around redirection loops"""
 
-from __future__ import absolute_import
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
-try:
-    from functools import wraps
-except ImportError:
-    from django.utils.functional import wraps
+from functools import wraps
 
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseRedirect
 from django.core.exceptions import PermissionDenied
+from django.http import HttpResponseRedirect
 from django.utils.http import urlquote
-
-import django
 
 __all__ = ['login_required', 'permission_required', 'user_passes_test']
 
@@ -32,14 +26,9 @@ def user_passes_test(test_func, login_url=None,
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
-            if django.VERSION[0] < 2:
-                is_user_authenticated = request.user.is_authenticated()
-            else:
-                is_user_authenticated = request.user.is_authenticated
-
             if test_func(request.user):
                 return view_func(request, *args, **kwargs)
-            elif is_user_authenticated:
+            elif request.user.is_authenticated:
                 raise PermissionDenied
             else:
                 path = '%s?%s=%s' % (login_url, redirect_field_name,

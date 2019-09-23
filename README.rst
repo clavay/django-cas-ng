@@ -2,8 +2,14 @@ Django CAS NG
 =============
 
 .. image:: https://travis-ci.org/mingchen/django-cas-ng.svg?branch=master
+    :target: https://travis-ci.org/mingchen/django-cas-ng    
+.. image:: https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square
+    :target: https://travis-ci.org/mingchen/django-cas-ng/pull/new
+.. image:: https://img.shields.io/badge/maintainers-wanted-red.svg
     :target: https://travis-ci.org/mingchen/django-cas-ng
-
+    
+    
+**NOTE: I am not actively use this project anymore beacuse I moved off python stack. I can still maintenance this project but may not reponse in a time manner. If anyone have interesting to maintenance it (like review PR and merging), please create a ticket in issue say you can offer help, I can grant you permission.**
 
 ``django-cas-ng`` is a Central Authentication Service (CAS) client implementation.
 This project inherits from `django-cas`_ (which has not been updated since
@@ -15,7 +21,8 @@ Features
 --------
 
 - Supports CAS_ versions 1.0, 2.0 and 3.0.
-- `Support Single Sign Out`_
+- Support Single Sign Out
+- Supports Token auth schemes
 - Can fetch Proxy Granting Ticket
 - Supports Django 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, 1.11 and 2.0
 - Supports using a `User custom model`_
@@ -40,12 +47,20 @@ Install from source code::
     python setup.py install
 
 
+Configuration
+-------------
+
+In order for your project to use ``django-cas-ng``, you'll need to configure
+certain settings, add URL mappings, and sync your database.
+
 Settings
---------
+^^^^^^^^
 
 Now add it to the middleware, authentication backends and installed apps in your settings.
 Make sure you also have the authentication middleware installed.
-Here's an example::
+Here's an example:
+
+..  code-block:: python
 
     INSTALLED_APPS = (
         'django.contrib.admin',
@@ -62,6 +77,7 @@ Here's an example::
         'django.middleware.common.CommonMiddleware',
         'django.contrib.sessions.middleware.SessionMiddleware',
         'django.contrib.auth.middleware.AuthenticationMiddleware',
+	'django_cas_ng.middleware.CASMiddleware',
         ...
     )
 
@@ -97,6 +113,12 @@ Optional settings include:
   The default is ``"You are logged in as %s."`` or some translation of it
   if you have enabled django internationalization (``USE_I18N = True``)
   You cas disable it by setting this parametter to ``None``
+* ``CAS_LOGIN_URL_NAME``: Name of the login url, defaults to ``'cas_ng_login'``.
+  This is only necessary if you use the middleware and want to use some other
+  name for the login url (e.g. ``'my_app:cas_login'``).
+* ``CAS_LOGOUT_URL_NAME``: Name of the logout url, defaults to
+  ``'cas_ng_logout'``. This is only necessary if you use the middleware and
+  want to use some other name for the logout url (e.g. ``'my_app:cas_logout'``).
 * ``CAS_EXTRA_LOGIN_PARAMS``: Extra URL parameters to add to the login URL
   when redirecting the user. Example::
 
@@ -123,8 +145,12 @@ Optional settings include:
 * ``CAS_VERSION``: The CAS protocol version to use. ``'1'`` ``'2'`` ``'3'`` and ``'CAS_2_SAML_1_0'`` are
   supported, with ``'2'`` being the default.
 * ``CAS_USERNAME_ATTRIBUTE``: The CAS user name attribute from response. The default is ``uid``.
-* ``CAS_PROXY_CALLBACK``: The full url to the callback view if you want to
-  retrive a Proxy Granting Ticket
+  If set with a value other than ``uid`` when ``CAS_VERSION`` is not ``'CAS_2_SAML_1_0'``, this
+  will be handled by the ``CASBackend``, in which case if the user lacks that attribute then
+  authentication will fail. Note that the attribute is checked before ``CAS_RENAME_ATTRIBUTES``
+  is applied.
+* ``CAS_PROXY_CALLBACK``: The full URL to the callback view if you want to
+  retrive a Proxy Granting Ticket. Defaults is ``None``.
 * ``CAS_ROOT_PROXIED_AS``: Useful if behind a proxy server.  If host is listening on http://foo.bar:8080 but request
   is https://foo.bar:8443.  Add CAS_ROOT_PROXIED_AS = 'https://foo.bar:8443' to your settings.
 * ``CAS_FORCE_CHANGE_USERNAME_CASE``: If ``lower``, usernames returned from CAS are lowercased before
@@ -139,19 +165,62 @@ Optional settings include:
   For example, if ``CAS_RENAME_ATTRIBUTES = {'ln':'last_name'}`` the ``ln`` attribute returned by the cas server
   will be renamed as ``last_name``. Used with ``CAS_APPLY_ATTRIBUTES_TO_USER = True``, this provides an easy way
   to fill in Django Users' info independtly from the attributes' keys returned by the CAS server.
+* ``CAS_VERIFY_SSL_CERTIFICATE``: If ``False`` CAS server certificate won't be verified. This is useful when using a
+  CAS test server with a self-signed certificate in a development environment. Default is ``True``.
+* ``CAS_LOCAL_NAME_FIELD``: If set, will make user lookup against this field and not model's nautral key.
+  This allows you to authenticate arbitrary users.
+  
+URL dispatcher
+^^^^^^^^^^^^^^
 
 Make sure your project knows how to log users in and out by adding these to
-your URL mappings::
+your URL mappings, noting the `simplified URL routing syntax`_ in Django 2.0
+and later:
 
+..  code-block:: python
+
+    # Django 2.0+
+    from django.urls import path
+    import django_cas_ng.views
+    
+    urlpatterns = [
+        # ...
+	path('accounts/login', django_cas_ng.views.LoginView.as_view(), name='cas_ng_login'),
+        path('accounts/logout', django_cas_ng.views.LogoutView.as_view(), name='cas_ng_logout'),
+    ]
+
+..  code-block:: python
+
+    # Django < 2.0
+    from django.conf.urls import url
     import django_cas_ng.views
 
-    url(r'^accounts/login$', django_cas_ng.views.login, name='cas_ng_login'),
-    url(r'^accounts/logout$', django_cas_ng.views.logout, name='cas_ng_logout'),
+    urlpatterns = [
+        # ...
+        url(r'^accounts/login$', django_cas_ng.views.LoginView.as_view(), name='cas_ng_login'),
+        url(r'^accounts/logout$', django_cas_ng.views.LogoutView.as_view(), name='cas_ng_logout'),
+    ]
+    
 
-You should also add an URL mapping for the ``CAS_PROXY_CALLBACK`` settings::
+If you use the middleware, the ``login`` and ``logout`` url must be given the
+name ``cas_ng_login`` and ``cas_ng_logout`` or it will create redirection
+issues, unless you set the ``CAS_LOGIN_URL_NAME`` and ``CAS_LOGOUT_URL_NAME`` setting.
 
+You should also add an URL mapping for the ``CAS_PROXY_CALLBACK`` setting, if you have this
+configured:
+
+..  code-block:: python
+
+    # Django 2.0+
+    path('accounts/callback', django_cas_ng.views.callback, name='cas_ng_proxy_callback'),
+    
+..  code-block:: python
+
+    # Django < 2.0
     url(r'^accounts/callback$', django_cas_ng.views.callback, name='cas_ng_proxy_callback'),
 
+Database
+^^^^^^^^
 
 Run ``./manage.py syncdb`` to create Single Sign On and Proxy Granting Ticket tables.
 On update you can just delete the ``django_cas_ng_sessionticket`` table and the
@@ -179,11 +248,11 @@ these ones:
 
     @csrf_exempt
     def login(request, **kwargs):
-        return _add_locale(request, baseviews.login(request, **kwargs))
+        return _add_locale(request, baseviews.LoginView.as_view()(request, **kwargs))
 
 
     def logout(request, **kwargs):
-        return _add_locale(request, baseviews.logout(request, **kwargs))
+        return _add_locale(request, baseviews.LoginView.as_view()(request, **kwargs))
 
 
     def _add_locale(request, response):
@@ -247,19 +316,26 @@ user object.
 
 **CASBackend.bad_attributes_reject(request, username, attributes)**
 
-Rejects a user if SAML username/attributes are not OK. For example, to accept a user belonging
-to departmentNumber 421 only, define in ``mysite/settings.py`` the key-value constant::
+Rejects a user if the returned username/attributes are not OK. For example, to
+accept a user belonging to departmentNumber 421 only, define in ``mysite/settings.py``
+the key-value constant:
 
-    MY_SAML_CONTROL=('departmentNumber', '421')
+..  code-block:: python
 
-and the authentication backends::
+    MY_ATTRIBUTE_CONTROL = ('departmentNumber', '421')
+
+and the authentication backends:
+
+..  code-block:: python
 
     AUTHENTICATION_BACKENDS = [
         'django.contrib.auth.backends.ModelBackend',
 	'mysite.backends.MyCASBackend',
     ]
 
-and create a file ``mysite/backends.py`` containing::
+and create a file ``mysite/backends.py`` containing:
+
+..  code-block:: python
 
     from django_cas_ng.backends import CASBackend
     from django.contrib import messages
@@ -270,21 +346,21 @@ and create a file ``mysite/backends.py`` containing::
         def user_can_authenticate(self, user):
             return True
 
-    def bad_attributes_reject(self, request, username, attributes):
-        attribute = settings.MY_SAML_CONTROL[0]
-        value = settings.MY_SAML_CONTROL[1]
+        def bad_attributes_reject(self, request, username, attributes):
+            attribute = settings.MY_ATTRIBUTE_CONTROL[0]
+            value = settings.MY_ATTRIBUTE_CONTROL[1]
 
-        if attribute not in attributes:
-	    message = 'No \''+ attribute + '\' in SAML attributes'
-	    messages.add_message(request, messages.ERROR, message)
-	    return message
+            if attribute not in attributes:
+                message = 'No \''+ attribute + '\' in SAML attributes'
+                messages.add_message(request, messages.ERROR, message)
+                return message
 
-        if value not in attributes[attribute]:
-	    message = 'User ' + str(username) + ' is not in ' + value + ' ' + attribute + ', should be one of ' + str(attributes[attribute])
-            messages.add_message(request, messages.ERROR, message)
-            return message
+            if value not in attributes[attribute]:
+                message = 'User ' + str(username) + ' is not in ' + value + ' ' + attribute + ', should be one of ' + str(attributes[attribute])
+                messages.add_message(request, messages.ERROR, message)
+                return message
 
-        return None
+            return None
 
 
 Signals
@@ -319,32 +395,6 @@ Sent on successful authentication, the ``CASBackend`` will fire the ``cas_user_a
   The request that was used to login.
 
 
-django_cas_ng.signals.cas_user_cannot_authenticate
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Sent when CAS has verified the user, but the user cannot login.  Either the user does not exist and
-will not be created, or the user is not active.
-
-**Arguments sent with this signal**
-
-**sender**
-  The authentication backend instance that authenticated the user.
-
-**username**
-  The name of the user that cannot login
-
-**user**
-  The user instance that was found, but not authenticated.  Note that the user may be ``None``.
-
-**created**
-  Boolean as to whether the user was just created.
-
-**ticket**
-  The ticket used to authenticate the user with the CAS.
-
-**request**
-  The request that was used to login.
-
 django_cas_ng.signals.cas_user_logout
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -364,9 +414,6 @@ Sent on user logout. Will be fired over manual logout or logout via CAS SingleLo
 **ticket**
   The ticket used to authenticate the user with the CAS. (if found, else value if set to ``None``)
 
-**request**
-  The request that was used to logout.  Note that this may be ``None``.
-
 
 Proxy Granting Ticket
 ---------------------
@@ -375,6 +422,8 @@ If you want your application to be able to issue Proxy Ticket to authenticate ag
 setup the CAS_PROXY_CALLBACK parameter.
 Allow on the CAS config django_cas_ng to act as a Proxy application.
 Then after a user has logged in using the CAS, you can retrieve a Proxy Ticket as follow:
+
+..  code-block:: python
 
     from django_cas_ng.models import ProxyGrantingTicket
 
@@ -427,6 +476,8 @@ Also welcome to add your name to **Credits** section of this document.
 
 New code should follow both `PEP8`_ and the `Django coding style`_.
 
+In PR, please also add your change description (especially for break changes) to `docs/changelog.rst`_ with a draft release version number like ``x.x.x``.
+
 
 Credits
 -------
@@ -449,6 +500,8 @@ Credits
 * `Alexander Kavanaugh`_
 * `Daniel Davis`_
 * `Peter Baehr`_
+* `laymonage`_
+* `Michael Phelps`_
 
 References
 ----------
@@ -458,8 +511,7 @@ References
 * `Jasig CAS server`_
 
 .. _CAS: https://www.apereo.org/cas
-.. _CAS protocol: https://www.apereo.org/cas/protocol
-.. _Support Single Sign Out: https://wiki.jasig.org/display/casum/single+sign+out
+.. _CAS protocol: https://www.apereo.org/cas
 .. _django-cas: https://bitbucket.org/cpcc/django-cas
 .. _clearsessions: https://docs.djangoproject.com/en/1.8/topics/http/sessions/#clearing-the-session-store
 .. _pip: http://www.pip-installer.org/
@@ -484,4 +536,7 @@ References
 .. _Alexander Kavanaugh: https://github.com/kavdev
 .. _Daniel Davis: https://github.com/danizen
 .. _Peter Baehr: https://github.com/pbaehr
-
+.. _laymonage: https://github.com/laymonage
+.. _Michael Phelps: https://github.com/nottheswimmer
+.. _simplified URL routing syntax: https://docs.djangoproject.com/en/dev/releases/2.0/#simplified-url-routing-syntax
+.. _docs/changelog.rst: docs/changelog.rst
